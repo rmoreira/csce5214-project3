@@ -21,7 +21,7 @@ class Bird:
     MAX_ROTATION = 25
     ROT_VEL = 20
     ANIMATION_TIME = 5
-    
+
     '''x, y are the starting coordinates of the bird'''
     def __init__(self, x, y):
         self.x = x
@@ -32,13 +32,13 @@ class Bird:
         self.height = self.y
         self.img_count = 0
         self.img = self.IMGS[0]
-    
+
     '''The Bird moves in a vertical manner, each time the jump function is called, the bird "jumps" up a certain velocity'''
     def jump(self):
         self.vel = -10.5
         self.tick_count = 0
         self.height = self.y
-        
+
     '''If the jump is not called, then the bird will start to fall towards the ground'''
     def move(self):
         self.tick_count += 1
@@ -58,7 +58,7 @@ class Bird:
         else:
             if self.tilt > -90:
                 self.tilt -= self.ROT_VEL
-    
+
     '''Function that draws what is happening to the bird'''
     def draw(self, win):
         self.img_count += 1
@@ -82,11 +82,11 @@ class Bird:
         rotated_image = pygame.transform.rotate(self.img, self.tilt)
         new_rect = rotated_image.get_rect(center=self.img.get_rect(topleft = (self.x, self.y)).center)
         win.blit(rotated_image, new_rect.topleft)
-    
+
     def get_mask(self):
         return pygame.mask.from_surface(self.img)
 
-'''Creates the pipe structure of the game'''   
+'''Creates the pipe structure of the game'''
 class Pipe:
     GAP = 250   #Gap between the pipes, can be larger or smaller
     VEL = 8    #the speed the pipes are moving, a constant 10 now but can be scaled based on time in game
@@ -130,13 +130,12 @@ class Pipe:
 
         b_point = bird_mask.overlap(bottom_mask, bottom_offset)
         t_point = bird_mask.overlap(top_mask, top_offset)
-
         if t_point or b_point:
             return True
         else:
             return False
 
-'''Creates a scrolling ground to show movement'''       
+'''Creates a scrolling ground to show movement'''
 class Base:
     VEL = 8                        #Again, this is set but must be the same as the pipe velocity
     WIDTH = BASE_IMG.get_width()    #Set the width to the screen width
@@ -160,7 +159,7 @@ class Base:
     def draw(self, win):
         win.blit(self.IMG, (self.x1, self.y))
         win.blit(self.IMG, (self.x2, self.y))
-        
+
 '''Draw the full window with all actions represented'''
 def draw_window(win, birds, pipes, base, score):
     win.blit(BG_IMG, (0, 0))
@@ -177,7 +176,7 @@ def draw_window(win, birds, pipes, base, score):
         #bird.draw(win)
     birds.draw(win)
     pygame.display.update()
-    
+
 
 '''The main functionality of the game'''
 def main():
@@ -190,7 +189,9 @@ def main():
     run = True
     add_pipe = False
 
-    while run:
+    count = 0
+
+    while (run and count <= 100):
         clock.tick(30)
 
         for event in pygame.event.get():
@@ -203,8 +204,16 @@ def main():
         rem = []
         '''Moves the pipes, generates more and checks for collisions'''
         for pipe in pipes:
+            print('-'*10)
+            print("Score: %d" % score)
+            print("Bird (x,y): (%d,%d)" % (bird.x, bird.y))
+            print("Pipe (x,bottom): (%d,%d)" % (pipe.x, pipe.bottom))
+            print("Pipe (x,top): (%d,%d)" % (pipe.x, pipe.top))
+            print("Horizontal Distance from next pipe,Vertical distance from pipe: (%d,%d)" % (bird.x-pipe.x,bird.y-pipe.bottom))
+            print("Action: %s" % str(event.type))
+            print('-'*10)
             if pipe.collide(bird):
-                print(score)
+                print("Final Score: %d" % score)
                 main()
 
             if not pipe.passed and pipe.x < bird.x:
@@ -213,7 +222,6 @@ def main():
 
             if pipe.x + pipe.PIPE_TOP.get_width() < 0:
                 rem.append(pipe)
-
             pipe.move()
 
         if add_pipe:
@@ -227,10 +235,10 @@ def main():
         if bird.y + bird.img.get_height() > 730:
             print(score)
             main()
-
         bird.move()
         base.move()
         draw_window(win, bird, pipes, base, score)
+        count += 1
 
     pygame.quit()
     quit()
