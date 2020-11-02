@@ -11,6 +11,7 @@ import cv2
 import matplotlib.pyplot as plt
 import pickle
 from matplotlib import style
+from scipy.interpolate import interp1d
 
 
 '''Flappy Bird Code Start'''
@@ -206,6 +207,7 @@ def draw_window(win, birds, pipes, base, score):
     # bird.draw(win)
     birds.draw(win)
     pygame.display.update()
+    return win
 
 '''The main functionality of the game'''
 class FlappyBirdEnv():
@@ -218,6 +220,7 @@ class FlappyBirdEnv():
     clock = pygame.time.Clock()
     episode_step = 0
     win = pygame.display.set_mode((WIN_WIDTH, WIN_HEIGHT))
+    m = interp1d([-850, 850], [-100, 100], fill_value="extrapolate")    #maps to -100 to 100 so that we don't have a key error
 
     def reset(self):
         self.bird = Bird(200, 200)
@@ -228,7 +231,8 @@ class FlappyBirdEnv():
         self.run = True
         self.add_pipe = False
         self.episode_step = 0
-        self.observation = ((round(self.bird.x / WIN_WIDTH * 100) - round((self.pipes[0].x - 232) / WIN_WIDTH * 100)), (round(self.bird.y / WIN_HEIGHT * 100) - round(self.pipes[0].bottom /WIN_HEIGHT * 100)))
+        self.observation = (int(self.m((round(self.bird.x) - round((self.pipes[0].x))))), int(self.m((round(self.bird.y) - round(self.pipes[0].bottom)))))
+        self.view = self.win
 
         '''if self.RETURN_IMAGES:
             self.observation = np.array(self.get_image())
@@ -237,7 +241,7 @@ class FlappyBirdEnv():
         return self.observation
 
     def step(self, action):
-        self.clock.tick(30)
+        self.clock.tick(3000)
         self.episode_step += 1
         self.bird.action(action)
 
@@ -287,9 +291,9 @@ class FlappyBirdEnv():
             done = True
 
         if self.RETURN_IMAGES:
-            new_observation = ((round(self.bird.x / WIN_WIDTH * 100) - round((self.pipes[0].x - 232) / WIN_WIDTH * 100)), (round(self.bird.y / WIN_HEIGHT * 100) - round(self.pipes[0].bottom /WIN_HEIGHT * 100)))
+            new_observation = (int(self.m(round(self.bird.x) - round((self.pipes[0].x)))), int(self.m(round(self.bird.y) - round(self.pipes[0].bottom))))
 
-        draw_window(self.win, self.bird, self.pipes, self.base, self.score)
+        self.view = draw_window(self.win, self.bird, self.pipes, self.base, self.score)
 
         return new_observation, reward, done
 
@@ -308,8 +312,8 @@ class FlappyBirdEnv():
 '''End of Flappy Bird Code'''
 
 SIZE = 101
-NUM_EPISODES = 1000
-SHOW_EVERY = 50
+NUM_EPISODES = 82000
+SHOW_EVERY = 100
 epsilon = 0.9
 EPS_DECAY = 0.9998
 
@@ -322,9 +326,9 @@ episode_rewards = []
 
 if start_q_table is None:
     q_table = {}
-    for x_diff in range(-SIZE + 2, SIZE):
-            for y_diff in range(-SIZE + 2, SIZE):
-                    q_table[(x_diff,y_diff)] = [np.random.uniform(-200, 1000) for i in range(10)]
+    for x_diff in range(-SIZE, SIZE):
+            for y_diff in range(-SIZE, SIZE):
+                    q_table[(x_diff,y_diff)] = [np.random.randint(-100,100) for i in range(0,2)]
 else:
     with open(start_q_table, "rb") as f:
         q_table = pickle.load(f)
@@ -337,6 +341,9 @@ for episode in range(NUM_EPISODES):
         print(f"on # {episode}, epsilon: {epsilon}")
         print(f"{SHOW_EVERY} ep mean {np.mean(episode_rewards[-SHOW_EVERY:])}")
         show = True
+        print(q_table)
+        name = "flappy_bird_" + str(episode) + ".jpg"
+        pygame.image.save(env.view, name)
     else:
         show = False
 
@@ -345,9 +352,15 @@ for episode in range(NUM_EPISODES):
     episode_reward = 0
     for i in range(1000):
         if np.random.random() > epsilon:
-            action = np.argmax(q_table[env.observation])
+            max = np.argmax(q_table[env.observation])
+            if max == q_table[env.observation][0]:
+                action = 0
+            else:
+                action = 1
         else:
-            action = np.random.randint(0, 5)
+            action = np.random.randint(0, 8)
+            if action != 1:
+                action = 0
 
         new_obs, reward, done = env.step(action)
         max_future_q = np.max(q_table[new_obs])
@@ -363,6 +376,9 @@ for episode in range(NUM_EPISODES):
             new_q = (1 - LEARNING_RATE) * current_q + LEARNING_RATE * (reward + DISCOUNT * max_future_q)
 
         q_table[env.observation][action] = new_q
+        '''print(q_table)
+        print(q_table[env.observation])
+        print(action)'''
 
         episode_reward += reward
         if reward < 0:
