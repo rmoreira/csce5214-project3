@@ -9,15 +9,16 @@ from matplotlib import style
 
 from FB_QL_Bot import Bot
 
-bot = Bot()
-
-pygame.font.init()
-
 WIN_WIDTH = 500
 WIN_HEIGHT = 800
 SCORES = []
 EPISODE = 10000
+CLOCK_TICK = 30
+DISCOUNT = 0.9
+LEARNING_RATE = 0.3
 MAX_SCORE = 25
+
+pygame.font.init()
 
 BIRD_IMGS = [pygame.transform.scale2x(pygame.image.load(os.path.join("imgs", "bird1.png"))),
              pygame.transform.scale2x(pygame.image.load(os.path.join("imgs", "bird2.png"))),
@@ -28,6 +29,7 @@ BG_IMG = pygame.transform.scale2x(pygame.image.load(os.path.join("imgs", "bg.png
 
 STAT_FONT = pygame.font.SysFont("comicsans", 50)
 
+
 def getNextUpdateTime():
     return datetime.datetime.now() + datetime.timedelta(minutes=5)
 
@@ -35,6 +37,8 @@ def getNextUpdateTime():
 NEXT_UPDATE_TIME = getNextUpdateTime()
 
 '''This class creates the bird object and the move functions for the bird'''
+
+
 class Bird:
     IMGS = BIRD_IMGS
     MAX_ROTATION = 25
@@ -219,7 +223,7 @@ def draw_window(win, birds, pipes, base, score):
 '''The main functionality of the game'''
 
 
-def mainGame():
+def mainGame(episodes=10000, discount=0.9, lr=0.3):
     vel = 8
     bird = Bird(200, 200)
     base = Base(730, vel)
@@ -230,8 +234,10 @@ def mainGame():
     run = True
     add_pipe = False
 
+    bot = Bot(episodes=episodes, discount=discount, lr=lr)
+
     while run:
-        clock.tick(3000)
+        clock.tick(CLOCK_TICK)
 
         if bot.act(bird.x, bird.y, bird.vel, pipes[0]) == 1:
             bird.jump()
@@ -240,9 +246,9 @@ def mainGame():
         '''Moves the pipes, generates more and checks for collisions'''
         for pipe in pipes:
             if pipe.collide(bird):
-                #print(score)
+                # print(score)
                 bot.update_scores()
-                updateQtable(score)
+                updateQtable(score, bot, episodes, lr, discount)
                 return True
 
             if not pipe.passed and pipe.x < bird.x:
@@ -267,9 +273,9 @@ def mainGame():
             pipes.remove(r)
 
         if bird.y + bird.img.get_height() > 730 or bird.y + bird.img.get_height() < 0:
-            #print(score)
+            # print(score)
             bot.update_scores()
-            updateQtable(score)
+            updateQtable(score, bot, episodes, lr, discount)
             return True
 
         if score > MAX_SCORE:
@@ -277,18 +283,20 @@ def mainGame():
 
         bird.move()
         base.move()
-        #draw_window(win, bird, pipes, base, score)
+        draw_window(win, bird, pipes, base, score)
 
     pygame.quit()
     quit()
 
-def updateQtable(score):
+
+def updateQtable(score, bot, episodes, lr, discount):
     global NEXT_UPDATE_TIME
 
     print("Game " + str(bot.gameCNT) + ": " + str(score))
 
     justUpdate = False
     if score > 5 or datetime.datetime.now() > NEXT_UPDATE_TIME:
+        print("Game " + str(bot.gameCNT) + ": " + str(score))
         bot.dump_qvalues(force=True)
         justUpdate = True
         NEXT_UPDATE_TIME = getNextUpdateTime()
@@ -300,14 +308,15 @@ def updateQtable(score):
 
     SCORES.append(score)
 
-    if bot.gameCNT >= EPISODE:
+    if bot.gameCNT >= episodes:
         if not justUpdate: bot.dump_qvalues(force=True)
-        showPerformance()
+        showPerformance(lr, discount)
         pygame.quit()
         sys.exit()
 
+
 # from matplotlib.ticker import MaxNLocator
-def showPerformance():
+def showPerformance(lr, discount):
     average = []
     num = 0
     sum_s = 0
@@ -328,8 +337,13 @@ def showPerformance():
     plt.title("Score distribution")
     plt.xlabel("Episode")
     plt.ylabel("Score")
-    plt.show()
 
-KeepGoing = True
-while KeepGoing:
-    KeepGoing = mainGame()
+    plt.savefig("qtable-LR" + str(lr) + "-D" + str(discount) + ".pdf", format="pdf", bbox_inches='tight')
+    plt.show()
+    plt.clf()
+
+
+for i in range(10):
+    KeepGoing = True
+    while KeepGoing:
+        KeepGoing = mainGame()

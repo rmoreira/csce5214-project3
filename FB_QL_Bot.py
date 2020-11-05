@@ -7,16 +7,17 @@ class Bot(object):
     After every iteration (iteration = 1 game that ends with the bird dying) updates Q values
     '''
 
-    def __init__(self):
+    def __init__(self, episodes = 10000, discount = 0.9, lr = 0.3):
         self.gameCNT = 0  # Game count of current run, incremented after every death
-        self.discount = 0.9
-        self.r = {0: 0, 1: -1000}  # Reward function
-        self.lr = 0.3
+        self.discount = discount
+        self.r = {0: 1, 1: -1000}  # Reward function
+        self.lr = lr
         self.load_qvalues()
         self.last_state = "0_0_0"  # initial position, MUST NOT be one of any other possible state
         self.initStateIfNull(self.last_state)
         self.last_action = 0
         self.moves = []
+        self.episodes = episodes
 
     def load_qvalues(self):
         """
@@ -24,7 +25,7 @@ class Bot(object):
         """
         self.qvalues = {}
         try:
-            fil = open("C:/Users/rmcm6/PycharmProjects/DQL/venv/data/q_values.json", "r")
+            fil = open("q_values.json", "r")
         except IOError:
             return
         self.qvalues = json.load(fil)
@@ -32,7 +33,7 @@ class Bot(object):
 
     # save q-values during the game, the bird is still alive, just to reduce the memory consumption
     def save_qvalues(self):
-        if len(self.moves) > 100000:
+        if len(self.moves) > self.episodes:
             history = list(reversed(self.moves[:95000]))
             for exp in history:
                 state, act, new_state = exp
@@ -146,7 +147,7 @@ class Bot(object):
         """
         if force:
             print("******** Saving Q-table(%d keys) to local file... ********" % len(self.qvalues.keys()))
-            fil = open("C:/Users/rmcm6/PycharmProjects/DQL/venv/data/q_values.json", "w")
+            fil = open("q_values.json", "w")
             json.dump(self.qvalues, fil)
             fil.close()
             print("******** Q-table(%d keys) updated on local file ********" % len(self.qvalues.keys()))

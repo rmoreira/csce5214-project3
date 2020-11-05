@@ -210,7 +210,7 @@ def draw_window(win, birds, pipes, base, score):
 '''The main functionality of the game'''
 class FlappyBirdEnv():
     PIPE_COLLISION_PENALTY = 1000
-    GROUND_SKY_PENALTY = 1000
+    GROUND_SKY_PENALTY = 10000
     PASS_THROUGH_REWARD = 1
     OBSERVATION_SPACE_VALUES = (WIN_WIDTH, WIN_HEIGHT, 3)
     REWARD_THRESHOLD = 100
@@ -289,6 +289,7 @@ class FlappyBirdEnv():
         if self.RETURN_IMAGES:
             new_observation = ((round(self.bird.x / WIN_WIDTH * 100) - round((self.pipes[0].x - 232) / WIN_WIDTH * 100)), (round(self.bird.y / WIN_HEIGHT * 100) - round(self.pipes[0].bottom /WIN_HEIGHT * 100)))
 
+        # if 'SDL_VIDEODRIVER' in os.environ.keys():
         #draw_window(self.win, self.bird, self.pipes, self.base, self.score)
 
         return new_observation, reward, done
@@ -313,11 +314,17 @@ for k in range(1):
     DISCOUNT = 0.07 #round(np.random.uniform(0,1),2)
     print("DISCOUNT = %f" % DISCOUNT)
 
-    EPISODES = 2500000
+    EPISODES = 25000
     SHOW_EVERY = 1000
 
     DISCRETE_OS_SIZE = [100] * 2
-    q_table = np.random.uniform(low=-99, high=101, size=(DISCRETE_OS_SIZE + [2]))
+
+    q_table = None
+    if 'QTABLE' in os.environ.keys():
+        with open(os.environ['QTABLE'], "rb") as f:
+            q_table = pickle.load(f)
+    else:
+        q_table = np.random.uniform(low=-99, high=101, size=(DISCRETE_OS_SIZE + [2]))
     episode_rewards = []
     # Exploration settings
     epsilon = 1  # not a constant, qoing to be decayed
@@ -325,27 +332,31 @@ for k in range(1):
     END_EPSILON_DECAYING = EPISODES//2
     epsilon_decay_value = epsilon/(END_EPSILON_DECAYING - START_EPSILON_DECAYING)
     try:
+        max_score = 0
         for episode in range(EPISODES):
             env.reset()
             discrete_state = env.observation
             done = False
 
-            if episode % SHOW_EVERY == 0:
-                print(episode)
+
             episode_reward = 0
             while not done:
-                action = None
-                if np.random.random() > epsilon:
-                    # Get action from Q table
-                    #action = round(np.argmax(q_table[discrete_state]))
-                    action = np.argmax(q_table[discrete_state])
-                else:
-                    # Get random action
-                    action = np.random.randint(0, 2)
+                # action = None
+                # if np.random.random() > epsilon:
+                #     # Get action from Q table
+                #     #action = round(np.argmax(q_table[discrete_state]))
+                #     action = np.argmax(q_table[discrete_state])
+                # else:
+                #     # Get random action
+                #     action = np.random.randint(0, 2)
+                action = np.argmax(q_table[discrete_state])
 
                 #print("Action: %d" % action)
 
                 new_discrete_state, reward, done = env.step(action)
+                if env.score > max_score:
+                    max_score = env.score
+
                 #new_q = (1 - LEARNING_RATE) * current_q + LEARNING_RATE * (reward + DISCOUNT * max_future_q)
 
                 # If simulation did not end yet after last step - update Q table
@@ -373,6 +384,9 @@ for k in range(1):
 
                 episode_reward += reward
 
+            if episode % SHOW_EVERY == 0:
+                print("ep: %d" % episode)
+                print("max score: %d" % max_score )
 
             episode_rewards.append(episode_reward)
 
@@ -380,7 +394,7 @@ for k in range(1):
             if END_EPSILON_DECAYING >= episode >= START_EPSILON_DECAYING:
                 epsilon -= epsilon_decay_value
 
-
+        print("FINAL max score: %d" % max_score )
         moving_avg = np.convolve(episode_rewards, np.ones((SHOW_EVERY,)) / SHOW_EVERY, mode="valid")
 
         plt.plot([i for i in range(len(moving_avg))], moving_avg)

@@ -209,8 +209,8 @@ def draw_window(win, birds, pipes, base, score):
 
 '''The main functionality of the game'''
 class FlappyBirdEnv():
-    PIPE_COLLISION_PENALTY = 300
-    GROUND_SKY_PENALTY = 500
+    PIPE_COLLISION_PENALTY = 1000
+    GROUND_SKY_PENALTY = 1000
     PASS_THROUGH_REWARD = 1
     OBSERVATION_SPACE_VALUES = (WIN_WIDTH, WIN_HEIGHT, 3)
     REWARD_THRESHOLD = 100
@@ -228,8 +228,8 @@ class FlappyBirdEnv():
         self.run = True
         self.add_pipe = False
         self.episode_step = 0
-        self.observation = ((round(self.bird.x / WIN_WIDTH * 100) - round((self.pipes[0].x - 232) / WIN_WIDTH * 100)), (round(self.bird.y / WIN_HEIGHT * 100) - round(self.pipes[0].bottom /WIN_HEIGHT * 100)))
-
+        #self.observation = ((round(self.bird.x / WIN_WIDTH * 100) - round((self.pipes[0].x - 232) / WIN_WIDTH * 100)), (round(self.bird.y / WIN_HEIGHT * 100) - round(self.pipes[0].bottom /WIN_HEIGHT * 100)))
+        self.observation = (self.bird.x-self.pipes[0].x,self.bird.y-self.pipes[0].bottom)
         '''if self.RETURN_IMAGES:
             self.observation = np.array(self.get_image())
         else:
@@ -237,7 +237,7 @@ class FlappyBirdEnv():
         return self.observation
 
     def step(self, action):
-        self.clock.tick(30)
+        self.clock.tick(30000)
         self.episode_step += 1
         self.bird.action(action)
 
@@ -287,8 +287,8 @@ class FlappyBirdEnv():
             done = True
 
         if self.RETURN_IMAGES:
-            new_observation = ((round(self.bird.x / WIN_WIDTH * 100) - round((self.pipes[0].x - 232) / WIN_WIDTH * 100)), (round(self.bird.y / WIN_HEIGHT * 100) - round(self.pipes[0].bottom /WIN_HEIGHT * 100)))
-
+            #new_observation = ((round(self.bird.x / WIN_WIDTH * 100) - round((self.pipes[0].x - 232) / WIN_WIDTH * 100)), (round(self.bird.y / WIN_HEIGHT * 100) - round(self.pipes[0].bottom /WIN_HEIGHT * 100)))
+            new_observation = (self.bird.x-self.pipes[0].x,self.bird.y-self.pipes[0].bottom)
         draw_window(self.win, self.bird, self.pipes, self.base, self.score)
 
         return new_observation, reward, done
@@ -309,14 +309,17 @@ class FlappyBirdEnv():
 
 SIZE = 101
 NUM_EPISODES = 1000
-SHOW_EVERY = 50
-epsilon = 0.9
+SHOW_EVERY = 1
+epsilon = 0.7
+ALPHA = 0.7
 EPS_DECAY = 0.9998
 
 start_q_table = None
+if 'Q_TABLE' in os.environ.keys():
+    start_q_table = os.environ['Q_TABLE']
 
 LEARNING_RATE = 0.1
-DISCOUNT = 0.95
+DISCOUNT_FACTOR = 1.0
 
 episode_rewards = []
 
@@ -347,20 +350,28 @@ for episode in range(NUM_EPISODES):
         if np.random.random() > epsilon:
             action = np.argmax(q_table[env.observation])
         else:
-            action = np.random.randint(0, 5)
+            action = np.random.randint(0, 1)
 
         new_obs, reward, done = env.step(action)
-        max_future_q = np.max(q_table[new_obs])
+        print(env.observation)
+        print(action)
         current_q = q_table[env.observation][action]
+        if new_obs in q_table.keys():
+            max_future_q = np.max(q_table[new_obs])
+        else:
+            max_future_q = current_q
+
 
         if reward > 0:
             new_q = 1
-        elif reward == -300:
-            new_q = -300
-        elif reward == -500:
-            new_q = -500
+        # elif reward == -300:
+        #     new_q = -300
+        # elif reward == -500:
+        #     new_q = -500
         else:
-            new_q = (1 - LEARNING_RATE) * current_q + LEARNING_RATE * (reward + DISCOUNT * max_future_q)
+            new_q = (1 - LEARNING_RATE) * current_q + LEARNING_RATE * (reward + DISCOUNT_FACTOR * max_future_q)
+            # Q[s,a] + α (r + γ*V(s') - Q[s,a])
+            # new_q = current_q +
 
         q_table[env.observation][action] = new_q
 
